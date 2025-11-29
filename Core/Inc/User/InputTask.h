@@ -8,6 +8,9 @@
 #ifndef INC_USER_INPUTTASK_H_
 #define INC_USER_INPUTTASK_H_
 
+#include "main.h"
+
+#include "FreeRTOS.h"
 #include "queue.h"
 
 typedef enum {

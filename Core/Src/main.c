@@ -252,6 +252,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : SW_VERT_UP_Pin SW_VERT_DN_Pin SW_PLAT_L_Pin SW_PLAT_R_Pin */
+  GPIO_InitStruct.Pin = SW_VERT_UP_Pin|SW_VERT_DN_Pin|SW_PLAT_L_Pin|SW_PLAT_R_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : BUT_VERT_Pin BUT_PLAT_Pin */
+  GPIO_InitStruct.Pin = BUT_VERT_Pin|BUT_PLAT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /*Configure GPIO pin : LD2_Pin */
   GPIO_InitStruct.Pin = LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;

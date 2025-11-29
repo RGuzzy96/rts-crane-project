@@ -13,6 +13,7 @@
 //User generated header files
 #include "User/main_user.h"
 #include "User/util.h"
+#include "User/InputTask.h"
 
 //Required FreeRTOS header files
 #include "FreeRTOS.h"
@@ -27,7 +28,7 @@ static void main_task(void *param){
 		print_str("Main task loop executing\r\n");
 		sprintf(main_string,"Main task iteration: 0x%08lx\r\n",main_counter++);
 		print_str(main_string);
-		vTaskDelay(1000/portTICK_RATE_MS);
+		vTaskDelay(10000/portTICK_RATE_MS);
 	}
 }
 
@@ -36,6 +37,8 @@ void main_user(){
 	util_init();
 
 	xTaskCreate(main_task,"Main Task", configMINIMAL_STACK_SIZE + 100, NULL, tskIDLE_PRIORITY + 2, NULL);
+
+	InputTask_Init();
 
 	vTaskStartScheduler();
 

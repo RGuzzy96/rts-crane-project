@@ -5,7 +5,8 @@
  *      Author: ryang
  */
 
-#include "InputTask.h"
+#include "User/InputTask.h"
+#include "User/util.h"
 
 #define INPUT_TASK_PERIOD_MS	20	// 50Hz
 #define DEBOUNCE_MS				40	// 2 cycles at 50Hz
@@ -39,7 +40,7 @@ void InputTask_Init(void){
 	xTaskCreate(
 		InputTask,
 		"InputTask",
-		256,
+		512,
 		NULL,
 		tskIDLE_PRIORITY + 3,
 		&inputTaskHandle
@@ -65,11 +66,17 @@ static void sendEvent(InputEvent evt){
 static void InputTask(void *arg){
 	TickType_t lastWake = xTaskGetTickCount();
 
+	print_str("Input task started!\r\n");
+
 	for (;;)
 	{
 		// read the gpios
 		uint8_t vertBtn = HAL_GPIO_ReadPin(BUT_VERT_GPIO_Port, BUT_VERT_Pin);
 		uint8_t platBtn = HAL_GPIO_ReadPin(BUT_PLAT_GPIO_Port, BUT_PLAT_Pin);
+
+//		char vertStatus[50];
+//		sprintf(vertStatus, "Vert button: %d\r\n", vertBtn);
+//		print_str(vertStatus);
 
 		uint8_t vertSwUp   = HAL_GPIO_ReadPin(SW_VERT_UP_GPIO_Port, SW_VERT_UP_Pin);
 		uint8_t vertSwDown = HAL_GPIO_ReadPin(SW_VERT_DN_GPIO_Port, SW_VERT_DN_Pin);
@@ -77,12 +84,13 @@ static void InputTask(void *arg){
 		uint8_t platSwLeft  = HAL_GPIO_ReadPin(SW_PLAT_L_GPIO_Port, SW_PLAT_L_Pin);
 		uint8_t platSwRight = HAL_GPIO_ReadPin(SW_PLAT_R_GPIO_Port, SW_PLAT_R_Pin);
 
-		uint8_t resetBtn    = HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin);
+		// uint8_t resetBtn    = HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin);
 
 		TickType_t now = xTaskGetTickCount();
 
 		// handle vertical button
 		if (vertBtn != lastVertBtn && (now - vertBtnLastChange) > pdMS_TO_TICKS(DEBOUNCE_MS)) {
+			print_str("Vert button pressed!\r\n");
 			vertBtnLastChange = now;
 
 			if (vertBtn){
@@ -96,6 +104,7 @@ static void InputTask(void *arg){
 
 		// handle platform button
 		if (platBtn != lastPlatBtn && (now - platBtnLastChange) > pdMS_TO_TICKS(DEBOUNCE_MS)) {
+			print_str("Plat button pressed!\r\n");
 			platBtnLastChange = now;
 
 			if (platBtn){
@@ -122,15 +131,15 @@ static void InputTask(void *arg){
 		}
 
 		// handle reset button
-		if (resetBtn != lastResetBtn && (now - restBtnLastChange) > pdMS_TO_TICKS(DEBOUNCE_MS)){
-			resetBtnLastChange = now;
-
-			if (resetBtn){
-				sendEvent(EVT_RESET_BUTTON);
-			}
-
-			lastResetBtn = resetBtn;
-		}
+//		if (resetBtn != lastResetBtn && (now - restBtnLastChange) > pdMS_TO_TICKS(DEBOUNCE_MS)){
+//			resetBtnLastChange = now;
+//
+//			if (resetBtn){
+//				sendEvent(EVT_RESET_BUTTON);
+//			}
+//
+//			lastResetBtn = resetBtn;
+//		}
 
 		// delay
 		vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(INPUT_TASK_PERIOD_MS));
