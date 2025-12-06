@@ -7,6 +7,7 @@
 
 #include "User/InputTask.h"
 #include "User/util.h"
+#include "User/ControlTask.h"
 
 #define INPUT_TASK_PERIOD_MS	20	// 50Hz
 #define DEBOUNCE_MS				40	// 2 cycles at 50Hz
@@ -27,15 +28,12 @@ static uint8_t lastResetBtn = 0;
 static TickType_t resetBtnLastChange = 0;
 
 static void InputTask(void *arg);
-static void sendEvent(InputEvent evt);
+static void ControlTask_SendEvent(InputEvent evt);
 
 // ---------------------------------------
 // external functions
 // ---------------------------------------
 void InputTask_Init(void){
-	// create queue
-	inputEventQueue = xQueueCreate(QUEUE_LENGTH, sizeof(InputEvent));
-
 	// create RTOS task for input task
 	xTaskCreate(
 		InputTask,
@@ -46,18 +44,6 @@ void InputTask_Init(void){
 		&inputTaskHandle
 	);
 }
-
-// ---------------------------------------
-// internal functions
-// ---------------------------------------
-
-// push event to queue
-static void sendEvent(InputEvent evt){
-	if (inputEventQueue != NULL){
-		xQueueSend(inputEventQueue, &evt, 0);
-	}
-}
-
 
 // ---------------------------------------
 // input task main loop
@@ -94,9 +80,9 @@ static void InputTask(void *arg){
 			vertBtnLastChange = now;
 
 			if (vertBtn){
-				sendEvent(EVT_VERT_BUTTON_PRESSED);
+				ControlTask_SendEvent(EVT_VERT_BUTTON_PRESSED);
 			} else {
-				sendEvent(EVT_VERT_BUTTON_RELEASED);
+				ControlTask_SendEvent(EVT_VERT_BUTTON_RELEASED);
 			}
 
 			lastVertBtn = vertBtn;
@@ -108,9 +94,9 @@ static void InputTask(void *arg){
 			platBtnLastChange = now;
 
 			if (platBtn){
-				sendEvent(EVT_PLAT_BUTTON_PRESSED);
+				ControlTask_SendEvent(EVT_PLAT_BUTTON_PRESSED);
 			} else {
-				sendEvent(EVT_PLAT_BUTTON_RELEASED);
+				ControlTask_SendEvent(EVT_PLAT_BUTTON_RELEASED);
 			}
 
 			lastPlatBtn = platBtn;
@@ -118,16 +104,16 @@ static void InputTask(void *arg){
 
 		// handle vertical switch
 		if (vertSwUp) {
-			sendEvent(EVT_VERT_SWITCH_UP);
+			ControlTask_SendEvent(EVT_VERT_SWITCH_UP);
 		} else if (vertSwDown) {
-			sendEvent(EVT_VERT_SWITCH_DOWN);
+			ControlTask_SendEvent(EVT_VERT_SWITCH_DOWN);
 		}
 
 		// handle platform switch
 		if (platSwLeft) {
-			sendEvent(EVT_PLAT_SWITCH_LEFT);
+			ControlTask_SendEvent(EVT_PLAT_SWITCH_LEFT);
 		} else if (platSwRight) {
-			sendEvent(EVT_PLAT_SWITCH_RIGHT);
+			ControlTask_SendEvent(EVT_PLAT_SWITCH_RIGHT);
 		}
 
 		// handle reset button
@@ -135,7 +121,7 @@ static void InputTask(void *arg){
 //			resetBtnLastChange = now;
 //
 //			if (resetBtn){
-//				sendEvent(EVT_RESET_BUTTON);
+//				ControlTask_SendEvent(EVT_RESET_BUTTON);
 //			}
 //
 //			lastResetBtn = resetBtn;

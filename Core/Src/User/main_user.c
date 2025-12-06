@@ -14,6 +14,7 @@
 #include "User/main_user.h"
 #include "User/util.h"
 #include "User/InputTask.h"
+#include "User/ControlTask.h"
 
 //Required FreeRTOS header files
 #include "FreeRTOS.h"
@@ -39,9 +40,9 @@ void main_user(){
 	xTaskCreate(main_task,"Main Task", configMINIMAL_STACK_SIZE + 100, NULL, tskIDLE_PRIORITY + 2, NULL);
 
 	InputTask_Init();
+	ControlTask_Init();
 
 	vTaskStartScheduler();
 
 	while(1);
-
 }
