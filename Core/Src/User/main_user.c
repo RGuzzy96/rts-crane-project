@@ -6,6 +6,8 @@
  */
 
 #include <stdio.h>
+#include <string.h>
+
 
 //STM32 generated header files
 #include "main.h"
@@ -16,6 +18,8 @@
 #include "User/InputTask.h"
 #include "User/ControlTask.h"
 #include "User/crane_hal.h"
+#include "User/uart.h"
+
 
 //Required FreeRTOS header files
 #include "FreeRTOS.h"
@@ -23,6 +27,10 @@
 
 char main_string[50];
 uint32_t main_counter = 0;
+static TaskHandle_t commandTaskHandle;
+static char cmdBuffer[50];
+static int cmdIndex = 0;
+
 
 static void main_task(void *param){
 
@@ -43,6 +51,8 @@ void main_user(){
 	Crane_HAL_Init();
 	InputTask_Init();
 	ControlTask_Init();
+	UART_Init();
+	UART_StartCommandTask();
 
 	vTaskStartScheduler();
 

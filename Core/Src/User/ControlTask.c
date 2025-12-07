@@ -24,6 +24,8 @@ typedef enum {
 	DIR_RIGHT
 } Direction;
 
+static CraneMode currentMode = MODE_MANUAL;
+
 // state for the vertical axis
 static Direction vertSwitchDir = DIR_NONE;
 static uint8_t vertButtonHeld = 0;
@@ -40,6 +42,22 @@ void ControlTask_SendEvent(InputEvent evt){
 		xQueueSend(controlQueue, &evt, 0);
 	}
 }
+
+void ControlTask_SetMode(CraneMode mode)
+{
+    currentMode = mode;
+
+    Crane_StopVertical();
+    Crane_StopPlatform();
+
+    // Optional status message
+    switch (mode) {
+    case MODE_MANUAL: print_str("Mode: MANUAL\r\n"); break;
+    case MODE_AUTO:   print_str("Mode: AUTO\r\n");   break;
+    case MODE_CAL:    print_str("Mode: CAL\r\n");    break;
+    }
+}
+
 
 void ControlTask_Init(void){
 	controlQueue = xQueueCreate(20, sizeof(InputEvent));
@@ -106,7 +124,19 @@ static void ControlTask(void *arg){
 	InputEvent evt;
 
 	for (;;){
+
 		while (xQueueReceive(controlQueue, &evt, 0)){
+
+		    // 🚫 Ignore all button + switch events unless in MANUAL mode
+		    if (currentMode != MODE_MANUAL) {
+		        // Except RESET button, which should still stop motors
+		        if (evt == EVT_RESET_BUTTON) {
+		            Crane_StopVertical();
+		            Crane_StopPlatform();
+		        }
+		        continue;   // Skip event processing
+		    }
+
 			switch (evt){
 			case EVT_VERT_BUTTON_PRESSED:
 				print_str("Control: Vertical BUTTON pressed\r\n");
