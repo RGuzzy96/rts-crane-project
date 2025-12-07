@@ -19,6 +19,8 @@
 #include "User/ControlTask.h"
 #include "User/crane_hal.h"
 #include "User/uart.h"
+#include "User/SensorTask.h"
+
 
 
 //Required FreeRTOS header files
@@ -34,10 +36,19 @@ static int cmdIndex = 0;
 
 static void main_task(void *param){
 
+    CraneSensorData s;
+
 	while(1){
-		print_str("Main task loop executing\r\n");
-		sprintf(main_string,"Main task iteration: 0x%08lx\r\n",main_counter++);
-		print_str(main_string);
+		//print_str("Main task loop executing\r\n");
+		//sprintf(main_string,"Main task iteration: 0x%08lx\r\n",main_counter++);
+		//print_str(main_string);
+		 if (xQueueReceive(sensorQueue, &s, 0) == pdPASS)
+		        {
+		            char buf[64];
+		            sprintf(buf, "Distance: %.2f cm   Normalized: %.2f\r\n", s.heightCm, s.heightNorm);
+		            print_str(buf);
+		        }
+
 		vTaskDelay(10000/portTICK_RATE_MS);
 	}
 }
@@ -53,6 +64,8 @@ void main_user(){
 	ControlTask_Init();
 	UART_Init();
 	UART_StartCommandTask();
+	SensorTask_Init();
+
 
 	vTaskStartScheduler();
 

@@ -93,6 +93,7 @@ void Error_Handler(void);
 /* USER CODE BEGIN Private defines */
 
 extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim3;
 
 /* USER CODE END Private defines */
 
