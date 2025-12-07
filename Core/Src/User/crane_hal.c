@@ -23,12 +23,18 @@ static void setVerticalServoPulse(uint16_t pulse_us)
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pulse_us);
 }
 
+static void setHorizontalServoPulse(uint16_t pulse_us)
+{
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, pulse_us);
+}
+
 void Crane_HAL_Init(void){
 	print_str("Crane_HAL_Init: Starting TIM14 PWM on PA4\r\n");
 
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-
+	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
 	setVerticalServoPulse(SERVO_STOP_US);
+	setHorizontalServoPulse(SERVO_STOP_US);
 }
 
 // need to implement the actual HAL GPIO handling for each of these for the crane
@@ -74,6 +80,9 @@ void Crane_MovePlatformLeft(void)
     if (platformState != 1)
     {
         print_str("Crane: ROTATING LEFT\r\n");
+
+        setHorizontalServoPulse(SERVO_MIN_US);
+
         platformState = 1;
     }
 }
@@ -83,6 +92,9 @@ void Crane_MovePlatformRight(void)
     if (platformState != 2)
     {
         print_str("Crane: ROTATING RIGHT\r\n");
+
+        setHorizontalServoPulse(SERVO_MAX_US);
+
         platformState = 2;
     }
 }
@@ -92,6 +104,9 @@ void Crane_StopPlatform(void)
     if (platformState != 0)
     {
         print_str("Crane: STOP PLATFORM\r\n");
+
+        setHorizontalServoPulse((SERVO_STOP_US));
+
         platformState = 0;
     }
 }

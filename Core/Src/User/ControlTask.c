@@ -141,12 +141,12 @@ static void ControlTask(void *arg){
 				break;
 
 			case EVT_PLAT_SWITCH_LEFT:
-				print_str("Control: Platform LEFT\r\n");
+				//print_str("Control: Platform LEFT\r\n");
 				platSwitchDir = DIR_LEFT;
 				break;
 
 			case EVT_PLAT_SWITCH_RIGHT:
-				print_str("Control: Platform RIGHT\r\n");
+				//print_str("Control: Platform RIGHT\r\n");
 				platSwitchDir = DIR_RIGHT;
 				break;
 
