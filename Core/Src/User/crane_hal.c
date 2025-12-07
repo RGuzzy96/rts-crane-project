@@ -21,6 +21,9 @@ void Crane_MoveVerticalUp(void)
     if (verticalState != 1)
     {
         print_str("Crane: MOVING VERTICAL UP\r\n");
+
+        // set gpios and start pwm for servo control
+
         verticalState = 1;
     }
 }
