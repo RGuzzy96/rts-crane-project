@@ -25,12 +25,12 @@ typedef enum {
 } Direction;
 
 // state for the vertical axis
-static Direction vertSwitchDir = DIR_UP;
+static Direction vertSwitchDir = DIR_NONE;
 static uint8_t vertButtonHeld = 0;
 static Direction vertCurrentMotion = DIR_NONE;
 
 // state for the platform axis
-static Direction platSwitchDir = DIR_LEFT;
+static Direction platSwitchDir = DIR_NONE;
 static uint8_t platButtonHeld = 0;
 static Direction platCurrentMotion = DIR_NONE;
 
@@ -129,17 +129,14 @@ static void ControlTask(void *arg){
 				break;
 
 			case EVT_VERT_SWITCH_UP:
-				print_str("Control: Vertical UP\r\n");
 				vertSwitchDir = DIR_UP;
 				break;
 
 			case EVT_VERT_SWITCH_DOWN:
-				print_str("Control: Vertical DOWN\r\n");
 				vertSwitchDir = DIR_DOWN;
 				break;
 
 			case EVT_VERT_SWITCH_OFF:
-				print_str("Control: Vertical NONE\r\n");
 				vertSwitchDir = DIR_NONE;
 				break;
 

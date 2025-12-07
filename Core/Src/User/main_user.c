@@ -15,6 +15,7 @@
 #include "User/util.h"
 #include "User/InputTask.h"
 #include "User/ControlTask.h"
+#include "User/crane_hal.h"
 
 //Required FreeRTOS header files
 #include "FreeRTOS.h"
@@ -39,6 +40,7 @@ void main_user(){
 
 	xTaskCreate(main_task,"Main Task", configMINIMAL_STACK_SIZE + 100, NULL, tskIDLE_PRIORITY + 2, NULL);
 
+	Crane_HAL_Init();
 	InputTask_Init();
 	ControlTask_Init();
 
