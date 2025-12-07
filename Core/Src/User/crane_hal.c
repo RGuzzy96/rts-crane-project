@@ -7,12 +7,28 @@
 
 #include "User/crane_hal.h"
 #include "User/util.h"
+#include "main.h"
 
 static uint8_t verticalState = 0;	// 0 = stop, 1 = up, 2 = down
 static uint8_t platformState = 0;	// 0 = stop, 1 = left, 2 = right
 
+#define SERVO_MIN_US    1100	// pulse timing in micro seconds
+#define SERVO_MAX_US    1900
+#define SERVO_STOP_US   1500
+
+
+// helper to write pwm pulse width
+static void setVerticalServoPulse(uint16_t pulse_us)
+{
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pulse_us);
+}
+
 void Crane_HAL_Init(void){
-	// nothing right now while we don't have the crane to actually interface with
+	print_str("Crane_HAL_Init: Starting TIM14 PWM on PA4\r\n");
+
+	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
+	setVerticalServoPulse(SERVO_STOP_US);
 }
 
 // need to implement the actual HAL GPIO handling for each of these for the crane
@@ -23,6 +39,7 @@ void Crane_MoveVerticalUp(void)
         print_str("Crane: MOVING VERTICAL UP\r\n");
 
         // set gpios and start pwm for servo control
+        setVerticalServoPulse(SERVO_MAX_US);
 
         verticalState = 1;
     }
@@ -33,6 +50,9 @@ void Crane_MoveVerticalDown(void)
     if (verticalState != 2)
     {
         print_str("Crane: MOVING VERTICAL DOWN\r\n");
+
+        setVerticalServoPulse(SERVO_MIN_US);
+
         verticalState = 2;
     }
 }
@@ -42,6 +62,9 @@ void Crane_StopVertical(void)
     if (verticalState != 0)
     {
         print_str("Crane: STOP VERTICAL\r\n");
+
+        setVerticalServoPulse(SERVO_STOP_US);
+
         verticalState = 0;
     }
 }
