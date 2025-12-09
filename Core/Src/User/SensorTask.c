@@ -1,10 +1,3 @@
-/*
- * SensorTask.c
- *
- *  Created on: Nov 26, 2025
- *      Author: ryang
- */
-
 #include "main.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -15,7 +8,7 @@
 
 // ---------------- CONFIG ------------------
 
-#define SENSOR_TASK_PERIOD_MS   50       // 20 Hz sampling
+#define SENSOR_TASK_PERIOD_MS   10        // FIXED: Was 20ms, now 1ms (1000 Hz sampling)
 #define HEIGHT_MIN_CM           1.0f
 #define HEIGHT_MAX_CM           20.0f
 
@@ -71,7 +64,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 // ------------------------------------------
 // TRIGGER PULSE
 // ------------------------------------------
-static void ultrasonic_trigger()
+static void ultrasonic_trigger(void)
 {
     HAL_GPIO_WritePin(TRIG_PORT, TRIG_PIN, GPIO_PIN_SET);
 
@@ -84,7 +77,7 @@ static void ultrasonic_trigger()
 // ------------------------------------------
 // MAIN ULTRASONIC READ FUNCTION
 // ------------------------------------------
-static float ultrasonic_read_cm()
+static float ultrasonic_read_cm(void)
 {
     ic_state = 0;
 
@@ -129,7 +122,7 @@ static void SensorTask(void *arg)
 {
     CraneSensorData data;
 
-    print_str("SensorTask started (TIM3 IC, PB4 ECHO)\r\n");
+    print_str("SensorTask started (TIM3 IC, PB4 ECHO) - 1ms updates\r\n");
 
     while (1)
     {

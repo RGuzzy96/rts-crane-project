@@ -5,21 +5,45 @@
  *      Author: ryang
  */
 
-#ifndef INC_USER_CRANE_HAL_H_
-#define INC_USER_CRANE_HAL_H_
+#ifndef CRANE_HAL_H_
+#define CRANE_HAL_H_
 
-#include <stdint.h>
+#include "main.h"
+#include "FreeRTOS.h"
+#include "queue.h"
 
+// Servo direction enum
+typedef enum {
+    DIRSTOP = 0,
+    DIRUP,
+    DIRDOWN
+} dir_t;
+
+extern uint16_t servo_pwm_forward;
+extern uint16_t servo_pwm_backward;
+extern uint16_t servo_pwm_stop;
+
+
+// Servo command struct
+typedef struct {
+    TIM_HandleTypeDef* htim;
+    dir_t servodir;
+} servo_cmd_t;
+
+// External queue for servo commands
+extern QueueHandle_t servo_Queue;
+
+// HAL initialization
 void Crane_HAL_Init(void);
 
-// vertical motion
+// Vertical servo control
 void Crane_MoveVerticalUp(void);
 void Crane_MoveVerticalDown(void);
 void Crane_StopVertical(void);
 
-// platform motion
-void Crane_MovePlatformLeft(void);
+// Platform servo control
 void Crane_MovePlatformRight(void);
+void Crane_MovePlatformLeft(void);
 void Crane_StopPlatform(void);
 
-#endif /* INC_USER_CRANE_HAL_H_ */
+#endif /* CRANE_HAL_H_ */

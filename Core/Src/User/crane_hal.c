@@ -1,113 +1,130 @@
 /*
- * crane_jal.c
- *
- *  Created on: Nov 26, 2025
- *      Author: ryang
+ * crane_hal.c - Buddy's servo pattern integrated (same filename!)
  */
-
 #include "User/crane_hal.h"
 #include "User/util.h"
 #include "main.h"
+#include "FreeRTOS.h"
+#include "queue.h"
+#include "task.h"
 
-static uint8_t verticalState = 0;	// 0 = stop, 1 = up, 2 = down
-static uint8_t platformState = 0;	// 0 = stop, 1 = left, 2 = right
+QueueHandle_t servo_Queue = NULL;
+static dir_t last_dir_vertical = DIRSTOP;
+static dir_t last_dir_platform = DIRSTOP;
 
-#define SERVO_MIN_US    1100	// pulse timing in micro seconds
-#define SERVO_MAX_US    1900
-#define SERVO_STOP_US   1500
+// Global PWM values - adjustable via calibration
+uint16_t servo_pwm_forward = 1570;   // Default 80% speed value
+uint16_t servo_pwm_backward = 1440;
+uint16_t servo_pwm_stop = 1500;
 
 
-// helper to write pwm pulse width
-static void setVerticalServoPulse(uint16_t pulse_us)
-{
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pulse_us);
-}
-
-static void setHorizontalServoPulse(uint16_t pulse_us)
-{
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, pulse_us);
-}
-
-void Crane_HAL_Init(void){
-	print_str("Crane_HAL_Init: Starting TIM14 PWM on PA4\r\n");
-
-	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-	setVerticalServoPulse(SERVO_STOP_US);
-	setHorizontalServoPulse(SERVO_STOP_US);
-}
-
-// need to implement the actual HAL GPIO handling for each of these for the crane
-void Crane_MoveVerticalUp(void)
-{
-    if (verticalState != 1)
-    {
+static void start_servo_fwd(TIM_HandleTypeDef *servo) {
+    if (servo == &htim1) { // Vertical CH1
+        __HAL_TIM_SET_COMPARE(servo, TIM_CHANNEL_1, servo_pwm_forward);  // USE VARIABLE
         print_str("Crane: MOVING VERTICAL UP\r\n");
-
-        // set gpios and start pwm for servo control
-        setVerticalServoPulse(SERVO_MAX_US);
-
-        verticalState = 1;
-    }
-}
-
-void Crane_MoveVerticalDown(void)
-{
-    if (verticalState != 2)
-    {
-        print_str("Crane: MOVING VERTICAL DOWN\r\n");
-
-        setVerticalServoPulse(SERVO_MIN_US);
-
-        verticalState = 2;
-    }
-}
-
-void Crane_StopVertical(void)
-{
-    if (verticalState != 0)
-    {
-        print_str("Crane: STOP VERTICAL\r\n");
-
-        setVerticalServoPulse(SERVO_STOP_US);
-
-        verticalState = 0;
-    }
-}
-
-void Crane_MovePlatformLeft(void)
-{
-    if (platformState != 1)
-    {
-        print_str("Crane: ROTATING LEFT\r\n");
-
-        setHorizontalServoPulse(SERVO_MIN_US);
-
-        platformState = 1;
-    }
-}
-
-void Crane_MovePlatformRight(void)
-{
-    if (platformState != 2)
-    {
+    } else { // Platform CH2
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, servo_pwm_forward);
         print_str("Crane: ROTATING RIGHT\r\n");
-
-        setHorizontalServoPulse(SERVO_MAX_US);
-
-        platformState = 2;
     }
 }
 
-void Crane_StopPlatform(void)
-{
-    if (platformState != 0)
-    {
+static void start_servo_bck(TIM_HandleTypeDef *servo) {
+    if (servo == &htim1) { // Vertical CH1
+        __HAL_TIM_SET_COMPARE(servo, TIM_CHANNEL_1, servo_pwm_backward);
+        print_str("Crane: MOVING VERTICAL DOWN\r\n");
+    } else { // Platform CH2
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, servo_pwm_backward);
+        print_str("Crane: ROTATING LEFT\r\n");
+    }
+}
+
+static void stop_servo(TIM_HandleTypeDef *servo){
+    if (servo == &htim1) {  // Vertical CH1
+        __HAL_TIM_SET_COMPARE(servo, TIM_CHANNEL_1, 1500);
+        print_str("Crane: STOP VERTICAL\r\n");
+    } else {  // Platform CH2
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 1500);
         print_str("Crane: STOP PLATFORM\r\n");
-
-        setHorizontalServoPulse((SERVO_STOP_US));
-
-        platformState = 0;
     }
 }
+
+// Your EXISTING API (ControlTask calls unchanged!)
+void Crane_MoveVerticalUp(void) {
+    servo_cmd_t cmd = {&htim1, DIRUP};
+    if (servo_Queue) xQueueSend(servo_Queue, &cmd, 0);
+}
+
+void Crane_MoveVerticalDown(void) {
+    servo_cmd_t cmd = {&htim1, DIRDOWN};
+    if (servo_Queue) xQueueSend(servo_Queue, &cmd, 0);
+}
+
+void Crane_StopVertical(void) {
+    servo_cmd_t cmd = {&htim1, DIRSTOP};
+    if (servo_Queue) xQueueSend(servo_Queue, &cmd, 0);
+}
+
+void Crane_MovePlatformRight(void) {
+    servo_cmd_t cmd = {NULL, DIRUP};
+    if (servo_Queue) xQueueSend(servo_Queue, &cmd, 0);
+}
+
+void Crane_MovePlatformLeft(void) {
+    servo_cmd_t cmd = {NULL, DIRDOWN};
+    if (servo_Queue) xQueueSend(servo_Queue, &cmd, 0);
+}
+
+void Crane_StopPlatform(void) {
+    servo_cmd_t cmd = {NULL, DIRSTOP};
+    if (servo_Queue) xQueueSend(servo_Queue, &cmd, 0);
+}
+
+static void servo_controller_task(void) {
+    servo_cmd_t current_cmd;
+
+    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);  // Vertical
+    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);  // Platform
+
+    servo_Queue = xQueueCreate(10, sizeof(servo_cmd_t));
+    print_str("Servo controller started\r\n");
+
+    while (xQueueReceive(servo_Queue, &current_cmd, portMAX_DELAY) == pdPASS) {
+        // VERTICAL (CH1)
+        if (current_cmd.htim == &htim1) {
+            if (last_dir_vertical == DIRSTOP) {
+                if (current_cmd.servodir == DIRUP) start_servo_fwd(&htim1);
+                else if (current_cmd.servodir == DIRDOWN) start_servo_bck(&htim1);
+                last_dir_vertical = current_cmd.servodir;
+            } else if ((last_dir_vertical == DIRUP && current_cmd.servodir == DIRDOWN) ||
+                       (last_dir_vertical == DIRDOWN && current_cmd.servodir == DIRUP)) {
+                stop_servo(&htim1);
+                last_dir_vertical = DIRSTOP;
+            } else if (current_cmd.servodir == DIRSTOP) {
+                stop_servo(&htim1);
+                last_dir_vertical = DIRSTOP;
+            }
+        }
+        // PLATFORM (CH2)
+        else {
+            if (last_dir_platform == DIRSTOP) {
+                if (current_cmd.servodir == DIRUP) start_servo_fwd(NULL);
+                else if (current_cmd.servodir == DIRDOWN) start_servo_bck(NULL);
+                last_dir_platform = current_cmd.servodir;
+            } else if ((last_dir_platform == DIRUP && current_cmd.servodir == DIRDOWN) ||
+                       (last_dir_platform == DIRDOWN && current_cmd.servodir == DIRUP)) {
+                stop_servo(NULL);
+                last_dir_platform = DIRSTOP;
+            } else if (current_cmd.servodir == DIRSTOP) {
+                stop_servo(NULL);
+                last_dir_platform = DIRSTOP;
+            }
+        }
+    }
+}
+
+void Crane_HAL_Init(void) {
+    print_str("Crane HAL: Starting servo task...\r\n");
+    xTaskCreate(servo_controller_task, "ServoTask", 256, NULL, tskIDLE_PRIORITY + 1, NULL);
+}
+
 
