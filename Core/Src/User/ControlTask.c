@@ -524,7 +524,7 @@ void updateCalMode(void)
             float elapsed_sec = elapsed_ms / 1000.0f;
             float speed = 4.0f / elapsed_sec;
             char buf[100];
-            sprintf(buf, "CAL: PWM %.2f -> Speed: %.2f cm/sec\r\n", servo_pwm_backward, speed);
+            sprintf(buf, "CAL: PWM %d -> Speed: %.2f cm/sec\r\n", servo_pwm_backward, speed);
             print_str(buf);
 
             servo_pwm_backward = 1400; // hardcoded secondary value, but ideally this should be selected based off of how far off our speed was
@@ -547,7 +547,7 @@ void updateCalMode(void)
             float elapsed_sec = elapsed_ms / 1000.0f;
             float speed = 4.0f / elapsed_sec;
             char buf[100];
-            sprintf(buf, "CAL: PWM %.2f -> Speed: %.2f cm/sec\r\n", servo_pwm_backward, speed);
+            sprintf(buf, "CAL: PWM %d -> Speed: %.2f cm/sec\r\n", servo_pwm_backward, speed);
             print_str(buf);
 
             // this is where we would now take the new results and find something either in between or further away from the firts option
@@ -573,7 +573,7 @@ void updateCalMode(void)
             float elapsed_sec = elapsed_ms / 1000.0f;
             float speed = 5.0f / elapsed_sec;
             char buf[100];
-            sprintf(buf, "CAL: PWM %.2f (80%%) -> Speed: %.2f cm/sec\r\n", servo_pwm_backward, speed);
+            sprintf(buf, "CAL: PWM %d (80%%) -> Speed: %.2f cm/sec\r\n", servo_pwm_backward, speed);
             print_str(buf);
 
             // this is the comparison that would be made to see if we land within 80% of speed reqs
