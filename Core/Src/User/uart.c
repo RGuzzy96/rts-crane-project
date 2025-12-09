@@ -7,7 +7,7 @@
 #include "User/ControlTask.h"
 
 
-// Extern from STM32 HAL
+// extern from STM32 HAL
 extern UART_HandleTypeDef huart2;
 
 char uartCommand[50];
@@ -15,7 +15,7 @@ static int cmdIndex = 0;
 
 static TaskHandle_t uartTaskHandle = NULL;
 
-//helper function
+//helper function for comparing strings for match
 int stricmp(const char *a, const char *b)
 {
     while (*a && *b)
@@ -31,30 +31,31 @@ int stricmp(const char *a, const char *b)
 
 static void UART_CommandTask(void *param)
 {
-    print_str("UART: Type 'manual', 'auto', or 'cal'\r\n");
+    print_str("UART: Type 'manual', 'auto', or 'cal'\r\n"); // print input options to user
 
     char ch;
 
     while (1)
     {
-        // Read 1 character from PuTTY
+        // read 1 character received over uart
         if (HAL_UART_Receive(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY) == HAL_OK)
         {
-            // Echo
+            // echo what was input
             HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
 
-            // ENTER pressed?
+            // check if enter was pressed
             if (ch == '\r' || ch == '\n')
             {
                 uartCommand[cmdIndex] = '\0'; // terminate string
 
                 uartCommand[cmdIndex] = '\0'; // terminate string
 
-                // Print what user typed
+                // reprint what user typed
                 print_str("\r\nCommand received: ");
                 print_str(uartCommand);
                 print_str("\r\n");
 
+                // check what was input to see if it aligns with our modes
                 if (stricmp(uartCommand, "manual") == 0)
                 {
                     ControlTask_SetMode(MODE_MANUAL);
@@ -70,7 +71,7 @@ static void UART_CommandTask(void *param)
                     ControlTask_SetMode(MODE_CAL);
                     print_str("Calibration mode selected\r\n");
                 }
-
+                // if input not aligned with modes, print error msg
                 else if (strlen(uartCommand) > 0)
                 {
                     print_str("Unknown command\r\n");
@@ -81,13 +82,13 @@ static void UART_CommandTask(void *param)
                 cmdIndex = 0;
 
 
-                // Reset buffer
+                // reset the buffer
                 memset(uartCommand, 0, sizeof(uartCommand));
                 cmdIndex = 0;
             }
             else
             {
-                // Push into command buffer
+                // if enter was not pressed, push the char into the command buffer
                 if (cmdIndex < sizeof(uartCommand) - 1)
                 {
                     uartCommand[cmdIndex++] = ch;
@@ -95,11 +96,6 @@ static void UART_CommandTask(void *param)
             }
         }
     }
-}
-
-void UART_Init(void)
-{
-    // Nothing needed yet (HAL UART is initialized in main.c)
 }
 
 void UART_StartCommandTask(void)

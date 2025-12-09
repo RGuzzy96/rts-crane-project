@@ -13,7 +13,7 @@
 #include "queue.h"
 
 typedef struct {
-	float heightCm;			// raw height converted to centimeters (not sure yet what the measurement comes in as)
+	float heightCm;			// raw height converted to centimeters
 	float heightNorm;		// normalized 0-1
 } CraneSensorData;
 

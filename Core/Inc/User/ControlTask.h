@@ -17,7 +17,8 @@ void ControlTask_Init(void);
 typedef enum {
     MODE_MANUAL = 0,
     MODE_AUTO,
-    MODE_CAL
+    MODE_CAL,
+	MODE_BLOCKED
 } CraneMode;
 
 void ControlTask_SetMode(CraneMode mode);

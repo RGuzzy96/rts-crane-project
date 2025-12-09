@@ -77,8 +77,12 @@ void Error_Handler(void);
 #define USART_TX_GPIO_Port GPIOA
 #define USART_RX_Pin GPIO_PIN_3
 #define USART_RX_GPIO_Port GPIOA
+#define LIM_SW_LEFT_Pin GPIO_PIN_4
+#define LIM_SW_LEFT_GPIO_Port GPIOA
 #define LD2_Pin GPIO_PIN_5
 #define LD2_GPIO_Port GPIOA
+#define LIM_SW_RIGHT_Pin GPIO_PIN_0
+#define LIM_SW_RIGHT_GPIO_Port GPIOB
 #define VERT_SERVO_Pin GPIO_PIN_8
 #define VERT_SERVO_GPIO_Port GPIOA
 #define HOR_SERVO_Pin GPIO_PIN_9

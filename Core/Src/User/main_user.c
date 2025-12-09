@@ -33,15 +33,12 @@ static TaskHandle_t commandTaskHandle;
 static char cmdBuffer[50];
 static int cmdIndex = 0;
 
-
+// simple task used for logging
 static void main_task(void *param){
 
     CraneSensorData s;
 
 	while(1){
-		//print_str("Main task loop executing\r\n");
-		//sprintf(main_string,"Main task iteration: 0x%08lx\r\n",main_counter++);
-		//print_str(main_string);
 		 if (xQueueReceive(sensorQueue, &s, 0) == pdPASS)
 		        {
 		            char buf[64];
@@ -53,20 +50,19 @@ static void main_task(void *param){
 	}
 }
 
-
 void main_user(){
 	util_init();
 
 	xTaskCreate(main_task,"Main Task", configMINIMAL_STACK_SIZE + 100, NULL, tskIDLE_PRIORITY + 2, NULL);
 
+	// initialize tasks
 	Crane_HAL_Init();
 	InputTask_Init();
 	ControlTask_Init();
-	UART_Init();
 	UART_StartCommandTask();
 	SensorTask_Init();
 
-
+	// start scheduler
 	vTaskStartScheduler();
 
 	while(1);

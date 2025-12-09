@@ -12,36 +12,37 @@
 #include "FreeRTOS.h"
 #include "queue.h"
 
-// Servo direction enum
+// servo direction enum
 typedef enum {
     DIRSTOP = 0,
     DIRUP,
     DIRDOWN
 } dir_t;
 
+// expose servo pwm speeds
 extern uint16_t servo_pwm_forward;
 extern uint16_t servo_pwm_backward;
 extern uint16_t servo_pwm_stop;
 
 
-// Servo command struct
+// servo command
 typedef struct {
     TIM_HandleTypeDef* htim;
     dir_t servodir;
 } servo_cmd_t;
 
-// External queue for servo commands
+// external queue for servo commands
 extern QueueHandle_t servo_Queue;
 
 // HAL initialization
 void Crane_HAL_Init(void);
 
-// Vertical servo control
+// vertical servo control
 void Crane_MoveVerticalUp(void);
 void Crane_MoveVerticalDown(void);
 void Crane_StopVertical(void);
 
-// Platform servo control
+// platform servo control
 void Crane_MovePlatformRight(void);
 void Crane_MovePlatformLeft(void);
 void Crane_StopPlatform(void);

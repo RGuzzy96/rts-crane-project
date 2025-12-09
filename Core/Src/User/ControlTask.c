@@ -16,15 +16,15 @@
 
 #define CONTROL_TASK_PERIOD_MS 20
 
-// Auto mode constants
+// auto mode constants
 #define AUTO_BASE_CM         6.0f   // first target height
 #define AUTO_TOL_CM           0.5f   // tolerance around target
 
-// Auto mode state machine
+// state machine for auto mode
 static uint8_t auto_step = 0;
 static TickType_t auto_step_start = 0;
 
-// Manual mode states
+// manual mode states
 typedef enum {
     DIR_NONE = 0,
     DIR_UP,
@@ -38,35 +38,28 @@ static TaskHandle_t controlTaskHandle;
 
 static CraneMode currentMode = MODE_MANUAL;
 
-// Vertical axis state
+// vertical axis state
 static Direction vertSwitchDir = DIR_NONE;
 static uint8_t vertButtonHeld = 0;
 static Direction vertCurrentMotion = DIR_NONE;
 
-// Platform axis state
+// platform axis state
 static Direction platSwitchDir = DIR_NONE;
 static uint8_t platButtonHeld = 0;
 static Direction platCurrentMotion = DIR_NONE;
 
-// Auto mode state tracking
+// auto mode state tracking
 static uint8_t autoStateEntry = 1;
 
-// External sensor queue
+// external sensor queue for sensor readings
 extern QueueHandle_t sensorQueue;
-
-// ============================================================================
-// FUNCTION DECLARATIONS
-// ============================================================================
 
 static void ControlTask(void *arg);
 static void updateVerticalMotion(void);
 static void updatePlatformMotion(void);
 static void updateAutoMode(void);
 
-// ============================================================================
-// PUBLIC API
-// ============================================================================
-
+// helper for sending events to control queue
 void ControlTask_SendEvent(InputEvent evt)
 {
     if (controlQueue) {
@@ -74,11 +67,12 @@ void ControlTask_SendEvent(InputEvent evt)
     }
 }
 
+// helper for setting mode for control operations
 void ControlTask_SetMode(CraneMode mode)
 {
-    currentMode = mode;
+    currentMode = mode; // change mode
 
-    // Full reset of motion state when mode changes
+    // full reset of motion state when mode changes
     vertButtonHeld = 0;
     platButtonHeld = 0;
     vertSwitchDir = DIR_NONE;
@@ -86,15 +80,17 @@ void ControlTask_SetMode(CraneMode mode)
     vertCurrentMotion = DIR_NONE;
     platCurrentMotion = DIR_NONE;
 
+    // stop movement of crane
     Crane_StopVertical();
     Crane_StopPlatform();
 
+    // reset auto states
     if (mode == MODE_AUTO) {
         auto_step = 0;
         autoStateEntry = 1;
     }
 
-    // Status message
+    // status message for mode change
     switch (mode) {
         case MODE_MANUAL:
             print_str("Mode: MANUAL\r\n");
@@ -104,6 +100,8 @@ void ControlTask_SetMode(CraneMode mode)
             break;
         case MODE_CAL:
             print_str("Mode: CAL\r\n");
+        case MODE_BLOCKED:
+        	print_str("Mode: BLOCKED\r\n");
             break;
     }
 }
@@ -121,13 +119,12 @@ void ControlTask_Init(void)
     );
 }
 
-// ============================================================================
-// MANUAL MODE HELPERS
-// ============================================================================
-
+// manual mode vertical motion helper
 static void updateVerticalMotion(void)
 {
-    // Stop if button not held or no switch direction
+    // stop if button not held or no switch direction
+	// (this was implemented with no switch direction as an option when simulated at home, but maintained as would be useful if
+		// further developed with 3 state switch)
     if (!vertButtonHeld || vertSwitchDir == DIR_NONE) {
         if (vertCurrentMotion != DIR_NONE) {
             Crane_StopVertical();
@@ -136,7 +133,7 @@ static void updateVerticalMotion(void)
         return;
     }
 
-    // Move based on switch direction
+    // move based on switch direction
     if (vertSwitchDir == DIR_UP && vertCurrentMotion != DIR_UP) {
         Crane_MoveVerticalUp();
         vertCurrentMotion = DIR_UP;
@@ -146,9 +143,12 @@ static void updateVerticalMotion(void)
     }
 }
 
+// manual mode platform movement helper
 static void updatePlatformMotion(void)
 {
-    // Stop if button not held or no switch direction
+    // stop if button not held or no switch direction
+	// (this was implemented with no switch direction as an option when simulated at home, but maintained as would be useful if
+	// further developed with 3 state switch)
     if (!platButtonHeld || platSwitchDir == DIR_NONE) {
         if (platCurrentMotion != DIR_NONE) {
             Crane_StopPlatform();
@@ -157,7 +157,7 @@ static void updatePlatformMotion(void)
         return;
     }
 
-    // Move based on switch direction
+    // move based on switch direction
     if (platSwitchDir == DIR_LEFT && platCurrentMotion != DIR_LEFT) {
         Crane_MovePlatformLeft();
         platCurrentMotion = DIR_LEFT;
@@ -167,49 +167,51 @@ static void updatePlatformMotion(void)
     }
 }
 
-// ============================================================================
-// AUTO MODE STATE MACHINE (9 STEPS)
-// ============================================================================
 
+// auto mode state machine
 static void updateAutoMode(void)
 {
     CraneSensorData s;
     if (xQueueReceive(sensorQueue, &s, 0) != pdPASS) {
-        return;  // No fresh sensor reading
+        return;  // return if no fresh sensor reading
     }
 
     float h = s.heightCm;
 
-    // CHECK IF MANUAL INPUT RECEIVED - RESET AUTO MODE
+    // check if manual input received, if so, switch to manual mode
     InputEvent evt;
     if (xQueueReceive(controlQueue, &evt, 0) == pdPASS) {
-        // Manual input detected - reset to MANUAL mode
         print_str("AUTO: Manual input detected! Resetting to MANUAL mode\r\n");
         Crane_StopVertical();
         Crane_StopPlatform();
         auto_step = 0;
         autoStateEntry = 1;
         ControlTask_SetMode(MODE_MANUAL);
-        return;  // Exit AUTO mode immediately
+        return;  // exit auto mode state machine
     }
 
 
     switch (auto_step) {
 
-    // Step 0: Raise to 10 cm (baseline)
+    // step 0: raise to first platform
     case 0:
     {
         if (autoStateEntry) {
-            print_str("AUTO: Step0 -> 10 cm baseline\r\n");
+            print_str("AUTO: Step0 -> first platform baseline\r\n");
             autoStateEntry = 0;
         }
+
+        // check if below the first platform (within tolerance)
         if (h < AUTO_BASE_CM - AUTO_TOL_CM) {
-            Crane_MoveVerticalDown();  // FIXED: Was MoveVerticalDown
+        	// move up
+            Crane_MoveVerticalDown(); // our function definitions got flipped at the crane_hal level
         } else if (h > AUTO_BASE_CM + AUTO_TOL_CM) {
+        	// otherwise, move down
             Crane_MoveVerticalUp();
         } else {
+        	// stop if within tolerance
             Crane_StopVertical();
-            print_str("AUTO: 10 cm reached, swing RIGHT 600ms\r\n");
+            print_str("AUTO: first platform reached, swing RIGHT 600ms\r\n");
             auto_step = 1;
             auto_step_start = xTaskGetTickCount();
             autoStateEntry = 1;
@@ -217,7 +219,7 @@ static void updateAutoMode(void)
         break;
     }
 
-    // Step 1: Swing RIGHT 600 ms (pick up from right position)
+    // step 1: rotate platform right for 600ms
     case 1:
         if (autoStateEntry) {
             print_str("AUTO: Step1 -> RIGHT 600ms\r\n");
@@ -233,16 +235,16 @@ static void updateAutoMode(void)
         }
         break;
 
-    // Step 2: Go UP 2 cm (from 10 cm to ~12 cm)
+    // step 2 go up 2cm to pick up freight
     case 2:
     {
-        float target = AUTO_BASE_CM + 2.0f;  // FIXED: Was 5.0f, should be 2.0f for 12cm
+        float target = AUTO_BASE_CM + 2.0f;
         if (autoStateEntry) {
             print_str("AUTO: Step2 -> UP 2cm (to 12cm)\r\n");
             autoStateEntry = 0;
         }
         if (h < target - AUTO_TOL_CM) {
-            Crane_MoveVerticalDown();  // FIXED: Was MoveVerticalDown
+            Crane_MoveVerticalDown();  // again, function name is flipped
         } else {
             Crane_StopVertical();
             print_str("AUTO: 12 cm reached, return to CENTER (LEFT 600ms)\r\n");
@@ -253,7 +255,7 @@ static void updateAutoMode(void)
         break;
     }
 
-    // Step 3: Back to CENTER - LEFT 600 ms (return to center)
+    // step 3: retrun to center, rotating left for 600ms
     case 3:
         if (autoStateEntry) {
             print_str("AUTO: Step3 -> LEFT 600ms (back to center)\r\n");
@@ -269,10 +271,10 @@ static void updateAutoMode(void)
         }
         break;
 
-    // Step 4: Go UP 5 cm (from 10 cm to ~15 cm)
+    // step 4: go up to 14.5cm
     case 4:
     {
-        float target = AUTO_BASE_CM + 10.0f;  // 15 cm
+        float target = AUTO_BASE_CM + 8.75f;  // 14.5 cm
         if (autoStateEntry) {
             print_str("AUTO: Step4 -> UP 5cm (to 15cm)\r\n");
             autoStateEntry = 0;
@@ -289,7 +291,7 @@ static void updateAutoMode(void)
         break;
     }
 
-    // Step 5: Go LEFT 600 ms (move left at high position)
+    // step 5: rotate left for 600 ms (to hover over top platform)
     case 5:
         if (autoStateEntry) {
             print_str("AUTO: Step5 -> LEFT 600ms\r\n");
@@ -305,70 +307,70 @@ static void updateAutoMode(void)
         }
         break;
 
-        // Step 6: Go DOWN 2 cm (from 15 cm to ~13 cm)
-        case 6:
-        {
-            float target = 10.0f;  // 15cm - 2cm = 13cm
-            if (autoStateEntry) {
-                print_str("AUTO: Step6 -> DOWN 2cm (to 13cm)\r\n");
-                autoStateEntry = 0;
-            }
-            if (h > target + AUTO_TOL_CM) {
-                Crane_MoveVerticalUp();
-            } else {
-                Crane_StopVertical();
-                print_str("AUTO: Reached 13cm, return to CENTER (RIGHT 600ms)\r\n");
-                auto_step = 7;
-                auto_step_start = xTaskGetTickCount();
-                autoStateEntry = 1;
-            }
-            break;
-        }
+	// Step 6: Go DOWN 2 cm (from 15 cm to ~13 cm)
+	case 6:
+	{
+		float target = 10.0f;  // 15cm - 2cm = 13cm
+		if (autoStateEntry) {
+			print_str("AUTO: Step6 -> DOWN 2cm (to 13cm)\r\n");
+			autoStateEntry = 0;
+		}
+		if (h > target + AUTO_TOL_CM) {
+			Crane_MoveVerticalUp();
+		} else {
+			Crane_StopVertical();
+			print_str("AUTO: Reached 13cm, return to CENTER (RIGHT 600ms)\r\n");
+			auto_step = 7;
+			auto_step_start = xTaskGetTickCount();
+			autoStateEntry = 1;
+		}
+		break;
+	}
 
-        // Step 7: Back to CENTER - RIGHT 600 ms
-        case 7:
-            if (autoStateEntry) {
-                print_str("AUTO: Step7 -> RIGHT 600ms (back to center)\r\n");
-                Crane_MovePlatformRight();
-                auto_step_start = xTaskGetTickCount();
-                autoStateEntry = 0;
-            }
-            if (xTaskGetTickCount() - auto_step_start >= pdMS_TO_TICKS(600)) {
-                Crane_StopPlatform();
-                print_str("AUTO: Centered, DOWN fully to 3cm (PICKUP)\r\n");
-                auto_step = 8;
-                autoStateEntry = 1;
-            }
-            break;
+	// step 7: rotate back to center (600ms again)
+	case 7:
+		if (autoStateEntry) {
+			print_str("AUTO: Step7 -> RIGHT 600ms (back to center)\r\n");
+			Crane_MovePlatformRight();
+			auto_step_start = xTaskGetTickCount();
+			autoStateEntry = 0;
+		}
+		if (xTaskGetTickCount() - auto_step_start >= pdMS_TO_TICKS(600)) {
+			Crane_StopPlatform();
+			print_str("AUTO: Centered, DOWN fully to 3cm (PICKUP)\r\n");
+			auto_step = 8;
+			autoStateEntry = 1;
+		}
+		break;
 
-        // Step 8: Go DOWN fully to 3 cm (pickup position)
-        case 8:
-        {
-            float target = 1.0f;
-            if (autoStateEntry) {
-                print_str("AUTO: Step8 -> DOWN to 3cm (PICKUP)\r\n");
-                autoStateEntry = 0;
-            }
-            if (h > target + AUTO_TOL_CM) {
-                Crane_MoveVerticalUp();
-            } else {
-                Crane_StopVertical();
-                print_str("AUTO: Reached 3cm, AUTO sequence COMPLETE!\r\n");
-                auto_step = 9;
-                autoStateEntry = 1;
-            }
-            break;
-        }
+	// step 8: go down fully to 2cm (we get limited by hardware at around 2)
+	case 8:
+	{
+		float target = 2.0f;
+		if (autoStateEntry) {
+			print_str("AUTO: Step8 -> DOWN to 2cm (PICKUP)\r\n");
+			autoStateEntry = 0;
+		}
+		if (h > target + AUTO_TOL_CM) {
+			Crane_MoveVerticalUp();
+		} else {
+			Crane_StopVertical();
+			print_str("AUTO: Reached 2cm, AUTO sequence COMPLETE!\r\n");
+			auto_step = 9;
+			autoStateEntry = 1;
+		}
+		break;
+	}
 
-        // Step 9: Done
-        case 9:
-            Crane_StopVertical();
-            Crane_StopPlatform();
-            print_str("AUTO: Full sequence complete. Returning to MANUAL\r\n");
-            ControlTask_SetMode(MODE_MANUAL);
-            auto_step = 0;
-            autoStateEntry = 1;
-            break;
+	//step 9: finish, stop movement and reset states
+	case 9:
+		Crane_StopVertical();
+		Crane_StopPlatform();
+		print_str("AUTO: Full sequence complete. Returning to MANUAL\r\n");
+		ControlTask_SetMode(MODE_MANUAL);
+		auto_step = 0;
+		autoStateEntry = 1;
+		break;
 
 
     default:
@@ -378,11 +380,7 @@ static void updateAutoMode(void)
     }
 }
 
-
-// ============================================================================
-// MAIN CONTROL TASK
-// ============================================================================
-
+// main control task
 static void ControlTask(void *arg)
 {
     print_str("ControlTask started!\r\n");
@@ -390,11 +388,11 @@ static void ControlTask(void *arg)
     InputEvent evt;
 
     for (;;) {
-        // Process input events
+        // process input events entering the control queue
         while (xQueueReceive(controlQueue, &evt, 0)) {
-            // Ignore button/switch events unless in MANUAL mode
+            // ignore button/switch events unless we're in manual mode
             if (currentMode != MODE_MANUAL) {
-                // Except RESET button always stops motors
+                // reset button should still work
                 if (evt == EVT_RESET_BUTTON) {
                     Crane_StopVertical();
                     Crane_StopPlatform();
@@ -405,11 +403,31 @@ static void ControlTask(void *arg)
                     vertCurrentMotion = DIR_NONE;
                     platCurrentMotion = DIR_NONE;
                 }
-                continue;  // Skip other events
+                continue;  // skip other events
             }
 
-            // Handle MANUAL mode events
+            //handle manual mode events
             switch (evt) {
+				case EVT_LIMIT_TOP_HIT:
+					Crane_StopVertical();
+					ControlTask_SetMode(MODE_BLOCKED);
+					break;
+
+				case EVT_LIMIT_BOTTOM_HIT:
+					Crane_StopVertical();
+					ControlTask_SetMode(MODE_BLOCKED);
+					break;
+
+				case EVT_LIMIT_LEFT_HIT:
+					Crane_StopPlatform();
+					ControlTask_SetMode(MODE_BLOCKED);
+					break;
+
+				case EVT_LIMIT_RIGHT_HIT:
+					Crane_StopPlatform();
+					ControlTask_SetMode(MODE_BLOCKED);
+					break;
+
                 case EVT_VERT_BUTTON_PRESSED:
                     print_str("Control: Vertical BUTTON pressed\r\n");
                     vertButtonHeld = 1;
@@ -460,256 +478,90 @@ static void ControlTask(void *arg)
             }
         }
 
-        // Apply motion based on mode
+        // apply motion based on mode
         if (currentMode == MODE_MANUAL) {
             updateVerticalMotion();
             updatePlatformMotion();
         } else if (currentMode == MODE_AUTO) {
             updateAutoMode();
         } else if (currentMode == MODE_CAL) {
-            updateCalMode();  // ADD THIS LINE
+            updateCalMode();
         }
 
         vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(CONTROL_TASK_PERIOD_MS));
     }
 }
-/*
 
-
-// Simple calibration - just set vertical speed to 80% of max
+// control for calibration mode
 void updateCalMode(void)
 {
     CraneSensorData s;
     if (xQueueReceive(sensorQueue, &s, 0) != pdPASS) {
-        return;
+        return; // ignore if no valid reading
     }
 
     float h = s.heightCm;
 
     switch (auto_step) {
 
-    // Step 0: Start - Raise slowly to test speed
+    // step 0: test first speed upwards
     case 0:
         if (autoStateEntry) {
-            print_str("\r\n=== CALIBRATION MODE ===\r\n");
-            print_str("CAL: Operating at 80% speed (1.6 cm/sec)\r\n");
-            print_str("CAL: Raising to 20cm...\r\n");
-            autoStateEntry = 0;
-        }
-        if (h < 14.0f - AUTO_TOL_CM) {
-            Crane_MoveVerticalDown();  // At 80% speed
-        } else if (h > 14.0f + AUTO_TOL_CM) {
-            Crane_MoveVerticalUp();
-        } else {
-            Crane_StopVertical();
-            print_str("CAL: Reached 20cm. Test servo values.\r\n");
-            print_str("CAL: Speed: 1.6 cm/sec (80% of max 2 cm/sec)\r\n");
-            auto_step = 1;
-            auto_step_start = xTaskGetTickCount();
-            autoStateEntry = 1;
-        }
-        break;
-
-    // Step 1: Lower back to 1cm
-    case 1:
-        if (autoStateEntry) {
-            print_str("CAL: Lowering to 1cm...\r\n");
-            autoStateEntry = 0;
-        }
-        if (h > 1.0f + AUTO_TOL_CM) {
-            Crane_MoveVerticalUp();
-        } else {
-            Crane_StopVertical();
-            print_str("CAL: Reached 1cm. Calibration COMPLETE!\r\n");
-            print_str("CAL: Returning to MANUAL mode\r\n");
-            auto_step = 2;
-            autoStateEntry = 1;
-        }
-        break;
-
-    // Step 2: Done
-    case 2:
-        Crane_StopVertical();
-        Crane_StopPlatform();
-        ControlTask_SetMode(MODE_MANUAL);
-        auto_step = 0;
-        autoStateEntry = 1;
-        break;
-
-    default:
-        auto_step = 0;
-        autoStateEntry = 1;
-        break;
-    }
-}
-
-
-void updateCalMode(void)
-{
-    CraneSensorData s;
-    if (xQueueReceive(sensorQueue, &s, 0) != pdPASS) {
-        return;
-    }
-
-    float h = s.heightCm;
-
-    switch (auto_step) {
-
-    // Step 0: Start - Raise slowly to test speed
-    case 0:
-        if (autoStateEntry) {
-            print_str("\r\n=== CALIBRATION MODE ===\r\n");
-            print_str("CAL: Operating at 80% speed (1.6 cm/sec)\r\n");
-            print_str("CAL: Raising from 1cm to 20cm...\r\n");
-            auto_step_start = xTaskGetTickCount();  // START TIMER
-            autoStateEntry = 0;
-        }
-        if (h < 13.0f - AUTO_TOL_CM) {
-            Crane_MoveVerticalDown();
-        } else if (h > 13.0f + AUTO_TOL_CM) {
-            Crane_MoveVerticalUp();
-        } else {
-            Crane_StopVertical();
-
-            // CALCULATE SPEED
-            TickType_t elapsed_ms = xTaskGetTickCount() - auto_step_start;
-            float elapsed_sec = elapsed_ms / 1000.0f;
-            float distance_cm = 19.0f;  // 20cm - 1cm
-            float speed = distance_cm / elapsed_sec;
-
-            char buf[100];
-            sprintf(buf, "CAL: Reached 20cm\r\n");
-            print_str(buf);
-            sprintf(buf, "CAL: Time: %.2f sec, Distance: %.1f cm\r\n", elapsed_sec, distance_cm);
-            print_str(buf);
-            sprintf(buf, "CAL: Actual Speed: %.2f cm/sec (Target: 1.6 cm/sec)\r\n", speed);
-            print_str(buf);
-
-            if (speed > 2.0f) {
-                print_str("CAL: WARNING - Speed exceeds max 2 cm/sec!\r\n");
-            } else if (speed < 1.5f) {
-                print_str("CAL: WARNING - Speed too slow (target 1.6 cm/sec)\r\n");
-            } else {
-                print_str("CAL: Speed OK!\r\n");
-            }
-
-            print_str("CAL: Lowering back to 1cm...\r\n");
-            auto_step = 1;
-            auto_step_start = xTaskGetTickCount();  // RESTART TIMER
-            autoStateEntry = 1;
-        }
-        break;
-
-    // Step 1: Lower back to 1cm
-    case 1:
-        if (autoStateEntry) {
-            autoStateEntry = 0;
-        }
-        if (h > 1.0f + AUTO_TOL_CM) {
-            Crane_MoveVerticalUp();
-        } else {
-            Crane_StopVertical();
-
-            // CALCULATE SPEED FOR DOWNWARD MOVEMENT
-            TickType_t elapsed_ms = xTaskGetTickCount() - auto_step_start;
-            float elapsed_sec = elapsed_ms / 1000.0f;
-            float distance_cm = 19.0f;
-            float speed = distance_cm / elapsed_sec;
-
-            char buf[100];
-            sprintf(buf, "CAL: Reached 1cm (down)\r\n");
-            print_str(buf);
-            sprintf(buf, "CAL: Down Speed: %.2f cm/sec\r\n", speed);
-            print_str(buf);
-
-            print_str("CAL: Calibration COMPLETE!\r\n");
-            print_str("CAL: Returning to MANUAL mode\r\n");
-            auto_step = 2;
-            autoStateEntry = 1;
-        }
-        break;
-
-    // Step 2: Done
-    case 2:
-        Crane_StopVertical();
-        Crane_StopPlatform();
-        ControlTask_SetMode(MODE_MANUAL);
-        auto_step = 0;
-        autoStateEntry = 1;
-        break;
-
-    default:
-        auto_step = 0;
-        autoStateEntry = 1;
-        break;
-    }
-}
-*/
-void updateCalMode(void)
-{
-    CraneSensorData s;
-    if (xQueueReceive(sensorQueue, &s, 0) != pdPASS) {
-        return;
-    }
-
-    float h = s.heightCm;
-
-    switch (auto_step) {
-
-    // Step 0: Test 1700 PWM (2cm -> 4cm)
-    case 0:
-        if (autoStateEntry) {
-            print_str("\r\n=== CALIBRATION MODE ===\r\n");
-            print_str("CAL: Stage 1 - PWM 1700 (2cm -> 4cm)\r\n");
-            servo_pwm_forward = 1800;
+            servo_pwm_backward = 1320; // hardcoded starting point
             auto_step_start = xTaskGetTickCount();
             autoStateEntry = 0;
         }
+
+        // check if nelow first target height of 4cm
         if (h < 4.0f - AUTO_TOL_CM) {
-            Crane_MoveVerticalDown();
+            Crane_MoveVerticalDown(); // move up (flipped function name)
         } else if (h > 4.0f + AUTO_TOL_CM) {
-            Crane_MoveVerticalUp();
+            Crane_MoveVerticalUp(); // move down if above
         } else {
+        	// stop if we have reached here and calculate results from first test
             Crane_StopVertical();
             TickType_t elapsed_ms = xTaskGetTickCount() - auto_step_start;
             float elapsed_sec = elapsed_ms / 1000.0f;
-            float speed = 2.0f / elapsed_sec;
+            float speed = 4.0f / elapsed_sec;
             char buf[100];
-            sprintf(buf, "CAL: PWM 1700 -> Speed: %.2f cm/sec\r\n", speed);
+            sprintf(buf, "CAL: PWM %.2f -> Speed: %.2f cm/sec\r\n", servo_pwm_backward, speed);
             print_str(buf);
 
-            print_str("CAL: Stage 2 - PWM 1600 (4cm -> 8cm)\r\n");
-            servo_pwm_forward = 1700;
+            servo_pwm_backward = 1400; // hardcoded secondary value, but ideally this should be selected based off of how far off our speed was
             auto_step = 1;
             auto_step_start = xTaskGetTickCount();
             autoStateEntry = 1;
         }
         break;
 
-    // Step 1: Test 1600 PWM (4cm -> 8cm)
+    // step 1: test second vertical speed (going up to 8cm)
     case 1:
         if (h < 8.0f - AUTO_TOL_CM) {
             Crane_MoveVerticalDown();
         } else if (h > 8.0f + AUTO_TOL_CM) {
             Crane_MoveVerticalUp();
         } else {
+        	// stop once we reach height within tolerance and calculate results
             Crane_StopVertical();
             TickType_t elapsed_ms = xTaskGetTickCount() - auto_step_start;
             float elapsed_sec = elapsed_ms / 1000.0f;
             float speed = 4.0f / elapsed_sec;
             char buf[100];
-            sprintf(buf, "CAL: PWM 1600 -> Speed: %.2f cm/sec\r\n", speed);
+            sprintf(buf, "CAL: PWM %.2f -> Speed: %.2f cm/sec\r\n", servo_pwm_backward, speed);
             print_str(buf);
 
-            print_str("CAL: Stage 3 - PWM 1570 (8cm -> 13cm)\r\n");
-            servo_pwm_forward = 1570;
+            // this is where we would now take the new results and find something either in between or further away from the firts option
+            // it would repeat this loop until we end up close to 2cm/s
+            // however, due to timeconstraints, a hardcoded value was used again
+
+            servo_pwm_backward = 1440; // hardcoded
             auto_step = 2;
             auto_step_start = xTaskGetTickCount();
             autoStateEntry = 1;
         }
         break;
 
-    // Step 2: Test 1570 PWM - 80% (8cm -> 13cm)
+    // step 2: next test for upwards speed
     case 2:
         if (h < 13.0f - AUTO_TOL_CM) {
             Crane_MoveVerticalDown();
@@ -721,9 +573,10 @@ void updateCalMode(void)
             float elapsed_sec = elapsed_ms / 1000.0f;
             float speed = 5.0f / elapsed_sec;
             char buf[100];
-            sprintf(buf, "CAL: PWM 1570 (80%%) -> Speed: %.2f cm/sec (Target: 1.6)\r\n", speed);
+            sprintf(buf, "CAL: PWM %.2f (80%%) -> Speed: %.2f cm/sec\r\n", servo_pwm_backward, speed);
             print_str(buf);
 
+            // this is the comparison that would be made to see if we land within 80% of speed reqs
             if (speed >= 1.5f && speed <= 1.7f) {
                 print_str("CAL: ✓ 80% Speed OK!\r\n");
             } else if (speed < 1.5f) {
@@ -732,20 +585,19 @@ void updateCalMode(void)
                 print_str("CAL: ✗ Too fast - decrease PWM\r\n");
             }
 
-            print_str("CAL: Stage 4 - Lowering back at 80% (13cm -> 2cm)\r\n");
+            // instead of logging, we would calculate the final speed
+
             auto_step = 3;
             auto_step_start = xTaskGetTickCount();
             autoStateEntry = 1;
         }
         break;
 
-
-
-    // Step 3: Lower back at 80% speed (13cm -> 2cm)
+    // step 3: calculate downward speed
     case 3:
 
     	if (autoStateEntry) {
-    	   servo_pwm_backward = 1430;  // Set DOWN speed (different from UP)
+    	   servo_pwm_forward = 1550; // hardcoded starting point
     	   autoStateEntry = 0;
     	}
         if (h > 2.0f + AUTO_TOL_CM) {
@@ -759,13 +611,16 @@ void updateCalMode(void)
             sprintf(buf, "CAL: Down Speed: %.2f cm/sec\r\n", speed);
             print_str(buf);
 
-            print_str("CAL: Calibration COMPLETE!\r\n");
+            // we calculate speed here but currently do nothing with it
+            // ideally, would use same procedure outlined in upwards handling to narrow in on the proper pwm value to
+            // achieve the safe speed
+
             auto_step = 4;
             autoStateEntry = 1;
         }
         break;
 
-    // Step 4: Done
+    // complete calibrationand set back to manual
     case 4:
         Crane_StopVertical();
         ControlTask_SetMode(MODE_MANUAL);
